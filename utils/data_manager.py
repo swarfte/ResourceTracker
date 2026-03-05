@@ -17,6 +17,7 @@ class ResourceItem:
     status: str = "unused"  # "unused" or "used"
     import_date: str = field(default_factory=lambda: datetime.now().isoformat())
     resource_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    tag: str = "unknown"  # Tag for categorizing resources by import batch
 
     def to_dict(self) -> dict:
         """Convert ResourceItem to dictionary for JSON serialization."""
@@ -113,12 +114,13 @@ class DataManager:
             # Return empty state if file is corrupted
             return ApplicationState()
 
-    def import_resources(self, df: pd.DataFrame, state: ApplicationState):
+    def import_resources(self, df: pd.DataFrame, state: ApplicationState, tag: str = "unknown"):
         """Import DataFrame as unused resources.
 
         Args:
             df: DataFrame to import
             state: Application state to update
+            tag: Tag to apply to all imported resources (default: "unknown")
         """
         # Convert DataFrame rows to ResourceItem objects
         for _, row in df.iterrows():
@@ -129,7 +131,8 @@ class DataManager:
             }
             resource = ResourceItem(
                 data=sanitized_data,
-                status="unused"
+                status="unused",
+                tag=tag
             )
             state.unused_resources.append(resource)
 
@@ -179,3 +182,32 @@ class DataManager:
                     break  # Don't add same resource twice
 
         return results
+
+    @staticmethod
+    def get_all_tags(resources: List[ResourceItem]) -> List[str]:
+        """Get all unique tags from a list of resources.
+
+        Args:
+            resources: List of resources to extract tags from
+
+        Returns:
+            Sorted list of unique tags
+        """
+        tags = set(resource.tag for resource in resources)
+        return sorted(list(tags))
+
+    @staticmethod
+    def filter_by_tag(tag: str, resources: List[ResourceItem]) -> List[ResourceItem]:
+        """Filter resources by tag.
+
+        Args:
+            tag: Tag to filter by (use "all" for no filtering)
+            resources: List of resources to filter
+
+        Returns:
+            Filtered list of resources
+        """
+        if not tag or tag.lower() == "all":
+            return resources
+
+        return [r for r in resources if r.tag == tag]

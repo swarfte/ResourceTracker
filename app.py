@@ -16,6 +16,17 @@ def main():
     state = SessionManager.get_state()
     data_manager = SessionManager.get_data_manager()
 
+    # Tag input field
+    st.subheader("🏷️ Tag Configuration")
+    tag = st.text_input(
+        "Import Tag (Optional)",
+        placeholder="Enter a custom tag (e.g., 'batch-1', 'test-data', '2024-03-05')",
+        help="This tag will be applied to all resources. If left empty, the filename will be used as the tag.",
+        value=""
+    )
+
+    st.divider()
+
     # File upload UI
     uploaded_file = st.file_uploader(
         "Upload Resource File",
@@ -25,7 +36,15 @@ def main():
     )
 
     if uploaded_file:
-        st.info(f"📁 File selected: **{uploaded_file.name}**")
+        # Extract filename without extension as default tag
+        filename = uploaded_file.name
+        filename_without_ext = filename.rsplit('.', 1)[0] if '.' in filename else filename
+
+        # Use custom tag if provided, otherwise use filename
+        import_tag = tag if tag.strip() else filename_without_ext
+
+        st.info(f"📁 File selected: **{filename}**")
+        st.info(f"🏷️ Tag: **{import_tag}** {'(using filename)' if not tag.strip() else '(custom tag)'}")
 
         # Parse the file
         df = FileParser.parse_file(uploaded_file)
@@ -47,11 +66,12 @@ def main():
             # Import button
             st.divider()
             if st.button(f"🚀 Import {len(df)} Resources as Unused", type="primary", use_container_width=True):
-                # Import resources
-                data_manager.import_resources(df, state)
+                # Import resources with tag
+                data_manager.import_resources(df, state, tag=import_tag)
                 data_manager.save_state(state)
 
-                st.success(f"✅ Successfully imported **{len(df)}** resources as unused!")
+                tag_source = "filename" if not tag.strip() else "custom tag"
+                st.success(f"✅ Successfully imported **{len(df)}** resources as unused with tag '**{import_tag}**' ({tag_source})!")
                 st.balloons()
 
                 # Show summary
@@ -66,15 +86,22 @@ def main():
         st.markdown("""
         ### 📋 How to use:
 
-        1. **Upload a file** - Click the button above to select a CSV or Excel file
-        2. **Preview data** - Review the first 10 rows of your data
-        3. **Import** - Click the import button to add all resources as "unused"
-        4. **Manage** - Navigate to 📦 Unused Resources to categorize them
+        1. **Set a tag (optional)** - Enter a custom tag or leave empty to use the filename as the tag
+        2. **Upload a file** - Click the button above to select a CSV or Excel file
+        3. **Preview data** - Review the first 10 rows of your data
+        4. **Import** - Click the import button to add all resources as "unused"
+        5. **Manage** - Navigate to 📦 Unused Resources to categorize them
 
         ### 📄 File Requirements:
         - CSV files (UTF-8, GBK, or Latin1 encoding)
         - Excel files (.xls or .xlsx)
         - No specific column requirements - all columns are imported
+
+        ### 🏷️ About Tags:
+        - Tags help you organize resources by import batch
+        - If you don't provide a tag, the **filename** will be used automatically
+        - You can filter resources by tag on the Unused/Used pages
+        - Example: File 'test-data.csv' → Tag 'test-data'
         """)
 
         # Show current stats if there's data

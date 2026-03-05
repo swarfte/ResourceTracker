@@ -25,33 +25,62 @@ def main():
         st.info("💡 Tip: Navigate to the home page to upload CSV or Excel files.")
         return
 
-    # Search functionality
+    # Get all unique tags
+    all_tags = data_manager.get_all_tags(state.unused_resources)
+
+    # Filter and search section
     st.divider()
-    search_query = st.text_input(
-        "🔍 Search resources",
-        placeholder="Search all columns...",
-        label_visibility="collapsed"
-    )
 
-    # Filter resources based on search
+    # Tag filter
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        selected_tag = st.selectbox(
+            "🏷️ Filter by Tag",
+            options=["All"] + all_tags,
+            help="Filter resources by import tag",
+            index=0
+        )
+
+    # Search functionality
+    with col2:
+        search_query = st.text_input(
+            "🔍 Search resources",
+            placeholder="Search all columns...",
+            label_visibility="visible"
+        )
+
+    # Apply filters
+    filtered = state.unused_resources
+
+    # Filter by tag first
+    if selected_tag != "All":
+        filtered = data_manager.filter_by_tag(selected_tag, filtered)
+
+    # Then filter by search query
     if search_query:
-        filtered = data_manager.search_resources(search_query, state.unused_resources)
-        st.info(f"📊 Found **{len(filtered)}** of **{total_unused}** resources matching '{search_query}'")
-    else:
-        filtered = state.unused_resources
+        filtered = data_manager.search_resources(search_query, filtered)
 
-    # Check if search returned no results
+    # Show filter results
+    if selected_tag != "All" and search_query:
+        st.info(f"📊 Found **{len(filtered)}** of **{total_unused}** resources (tag: '{selected_tag}', search: '{search_query}')")
+    elif selected_tag != "All":
+        st.info(f"📊 Found **{len(filtered)}** of **{total_unused}** resources with tag '{selected_tag}'")
+    elif search_query:
+        st.info(f"📊 Found **{len(filtered)}** of **{total_unused}** resources matching '{search_query}'")
+
+    # Check if filters returned no results
     if not filtered:
-        st.warning(f"⚠️ No resources found matching '{search_query}'")
+        st.warning("⚠️ No resources found matching the filters")
         return
 
     # Convert to DataFrame for display
     df_data = [r.data for r in filtered]
     df = pd.DataFrame(df_data)
 
-    # Add selection column at the beginning
+    # Add selection, ID, and Tag columns at the beginning
     df.insert(0, '☐️ Select', False)
     df.insert(1, '🆔 ID', [r.resource_id for r in filtered])
+    df.insert(2, '🏷️ Tag', [r.tag for r in filtered])
 
     # Display editable table
     st.subheader("📋 Resource List")
@@ -68,6 +97,12 @@ def main():
             "🆔 ID": st.column_config.TextColumn(
                 "ID",
                 help="Unique resource identifier",
+                width="small",
+                disabled=True
+            ),
+            "🏷️ Tag": st.column_config.TextColumn(
+                "Tag",
+                help="Import batch tag",
                 width="small",
                 disabled=True
             )
