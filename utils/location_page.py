@@ -88,13 +88,59 @@ def render_location_page(location_key: str, location_display: str):
     df_data = [r.data for r in filtered]
     df = pd.DataFrame(df_data)
 
-    # Add selection, ID, and Tag columns at the beginning
-    df.insert(0, '☐️ Select', False)
-    df.insert(1, '🆔 ID', [r.resource_id for r in filtered])
-    df.insert(2, '🏷️ Tag', [r.tag for r in filtered])
+    # Add ID and Tag columns at the beginning
+    df.insert(0, '🆔 ID', [r.resource_id for r in filtered])
+    df.insert(1, '🏷️ Tag', [r.tag for r in filtered])
+
+    # Initialize session state for select all
+    if 'select_all' not in st.session_state:
+        st.session_state.select_all = False
+
+    # Select All checkbox and action buttons
+    st.subheader("📋 Resource List")
+    col1, col2, col3 = st.columns([1, 1, 4])
+
+    with col1:
+        # Use session state value for checkbox
+        select_all = st.checkbox(
+            "☑️ Select All",
+            value=st.session_state.select_all,
+            help="Select all filtered resources",
+            key=f"select_all_{location_key}"  # Unique key for each location page
+        )
+
+    with col2:
+        # Clear selection button
+        if st.button("🗑️ Clear", help="Clear all selections", key=f"clear_{location_key}"):
+            st.session_state.select_all = False
+            if 'current_selections' in st.session_state:
+                del st.session_state.current_selections
+            st.rerun()
+
+    # Detect if select_all checkbox changed and update session state
+    if select_all != st.session_state.select_all:
+        st.session_state.select_all = select_all
+        st.rerun()  # Rerun to apply the change
+
+    # Set selection column based on select_all state
+    # Also handle preserved selections from manual checkbox changes
+    if st.session_state.select_all:
+        # Select all is checked
+        df.insert(0, '☐️ Select', True)
+    elif 'current_selections' in st.session_state:
+        # Use preserved manual selections (if any)
+        current_selections = st.session_state.current_selections
+        # Make sure the list length matches
+        if len(current_selections) == len(df):
+            df.insert(0, '☐️ Select', current_selections)
+        else:
+            # Length mismatch, reset to False
+            df.insert(0, '☐️ Select', False)
+    else:
+        # Default - nothing selected
+        df.insert(0, '☐️ Select', False)
 
     # Display editable table
-    st.subheader("📋 Resource List")
     edited_df = st.data_editor(
         df,
         width='stretch',
@@ -121,6 +167,11 @@ def render_location_page(location_key: str, location_display: str):
         height=400
     )
 
+    # Store current selections in session state for manual changes
+    # Only store if select_all is False (to preserve manual selections)
+    if not st.session_state.select_all:
+        st.session_state.current_selections = edited_df['☐️ Select'].tolist()
+
     # Handle move to another location
     selected_rows = edited_df[edited_df['☐️ Select'] == True]
 
@@ -138,17 +189,37 @@ def render_location_page(location_key: str, location_display: str):
                 "Move to:",
                 options=[k for k, v in other_locations],
                 format_func=lambda x: LOCATION_DISPLAY_NAMES[x],
-                help="Select target location"
+                help="Select target location",
+                key=f"move_to_{location_key}"
             )
 
         with col3:
-            if st.button("📤 Move", type="primary", use_container_width=True):
+            if st.button("📤 Move", type="primary", use_container_width=True, key=f"move_btn_{location_key}"):
                 # Get resource IDs to move
                 selected_ids = selected_rows['🆔 ID'].tolist()
 
-                # Move resources
-                data_manager.move_resources(selected_ids, state, target_location)
-                data_manager.save_state(state)
+                # Debug output
+                with st.expander("🔍 Debug Info", expanded=False):
+                    st.write(f"Moving {len(selected_ids)} resources")
+                    st.write(f"From: {location_key}")
+                    st.write(f"To: {target_location}")
+                    st.write(f"Resource IDs: {selected_ids[:5]}...")  # Show first 5
 
-                st.success(f"✅ Successfully moved **{len(selected_ids)}** resources to **{LOCATION_DISPLAY_NAMES[target_location]}**!")
-                st.rerun()
+                try:
+                    # Move resources
+                    data_manager.move_resources(selected_ids, state, target_location)
+                    data_manager.save_state(state)
+
+                    # Clear selections after move
+                    st.session_state.select_all = False
+                    if 'current_selections' in st.session_state:
+                        del st.session_state.current_selections
+
+                    st.success(f"✅ Successfully moved **{len(selected_ids)}** resources to **{LOCATION_DISPLAY_NAMES[target_location]}**!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error moving resources: {str(e)}")
+                    st.exception(e)
+    else:
+        # Show hint when no rows selected
+        st.caption("💡 Select resources using the checkboxes or 'Select All' to move them to another location")
