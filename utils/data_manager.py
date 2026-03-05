@@ -9,12 +9,31 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 import pandas as pd
 
+# Define all available locations
+LOCATIONS = [
+    "warehouse",
+    "card_room",
+    "gaming_pit",
+    "gaming_table",
+    "destruction_room",
+    "surveillance"
+]
+
+LOCATION_DISPLAY_NAMES = {
+    "warehouse": "📦 Warehouse",
+    "card_room": "🃏 Card Room",
+    "gaming_pit": "🎰 Gaming Pit",
+    "gaming_table": "🎲 Gaming Table",
+    "destruction_room": "🔥 Destruction Room",
+    "surveillance": "📹 Surveillance"
+}
+
 
 @dataclass
 class ResourceItem:
     """Represents a single resource row with metadata."""
     data: Dict[str, Any]  # Original row data from CSV/Excel
-    status: str = "unused"  # "unused" or "used"
+    location: str = "warehouse"  # Current location of the resource
     import_date: str = field(default_factory=lambda: datetime.now().isoformat())
     resource_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     tag: str = "unknown"  # Tag for categorizing resources by import batch
@@ -27,15 +46,21 @@ class ResourceItem:
 @dataclass
 class ApplicationState:
     """Main application state for persistence."""
-    unused_resources: List[ResourceItem] = field(default_factory=list)
-    used_resources: List[ResourceItem] = field(default_factory=list)
+    resources: Dict[str, List[ResourceItem]] = field(default_factory=dict)  # location -> resources
     last_updated: str = field(default_factory=lambda: datetime.now().isoformat())
+
+    def __post_init__(self):
+        """Initialize all locations with empty lists."""
+        if not self.resources:
+            self.resources = {loc: [] for loc in LOCATIONS}
 
     def to_dict(self) -> dict:
         """Convert ApplicationState to dictionary for JSON serialization."""
         return {
-            'unused_resources': [r.to_dict() for r in self.unused_resources],
-            'used_resources': [r.to_dict() for r in self.used_resources],
+            'resources': {
+                loc: [r.to_dict() for r in resources]
+                for loc, resources in self.resources.items()
+            },
             'last_updated': self.last_updated
         }
 
@@ -100,13 +125,26 @@ class DataManager:
 
             state = ApplicationState()
 
-            # Reconstruct ResourceItem objects
-            state.unused_resources = [
-                ResourceItem(**item) for item in data.get('unused_resources', [])
-            ]
-            state.used_resources = [
-                ResourceItem(**item) for item in data.get('used_resources', [])
-            ]
+            # Check if using new format (resources dict) or old format (unused/used)
+            if 'resources' in data:
+                # New format
+                for loc, items in data['resources'].items():
+                    if loc in LOCATIONS:
+                        state.resources[loc] = [ResourceItem(**item) for item in items]
+            else:
+                # Old format - migrate unused_resources to warehouse, used_resources to surveillance
+                unused = [ResourceItem(**item) for item in data.get('unused_resources', [])]
+                used = [ResourceItem(**item) for item in data.get('used_resources', [])]
+
+                # Migrate old data to new locations
+                for resource in unused:
+                    resource.location = "warehouse"
+                    state.resources["warehouse"].append(resource)
+
+                for resource in used:
+                    resource.location = "surveillance"
+                    state.resources["surveillance"].append(resource)
+
             state.last_updated = data.get('last_updated', datetime.now().isoformat())
 
             return state
@@ -115,7 +153,7 @@ class DataManager:
             return ApplicationState()
 
     def import_resources(self, df: pd.DataFrame, state: ApplicationState, tag: str = "unknown"):
-        """Import DataFrame as unused resources.
+        """Import DataFrame as resources in warehouse.
 
         Args:
             df: DataFrame to import
@@ -131,32 +169,40 @@ class DataManager:
             }
             resource = ResourceItem(
                 data=sanitized_data,
-                status="unused",
+                location="warehouse",  # Store in warehouse by default
                 tag=tag
             )
-            state.unused_resources.append(resource)
+            state.resources["warehouse"].append(resource)
 
-    def move_to_used(self, resource_ids: List[str], state: ApplicationState):
-        """Move resources from unused to used.
+    def move_resources(self, resource_ids: List[str], state: ApplicationState, target_location: str):
+        """Move resources from current location to target location.
 
         Args:
             resource_ids: List of resource IDs to move
             state: Application state to update
+            target_location: Target location to move resources to
         """
-        # Find and move resources
-        resources_to_move = []
-        remaining_unused = []
+        if target_location not in LOCATIONS:
+            raise ValueError(f"Invalid target location: {target_location}")
 
-        for resource in state.unused_resources:
-            if resource.resource_id in resource_ids:
-                resource.status = "used"
-                resources_to_move.append(resource)
-            else:
-                remaining_unused.append(resource)
+        # Find and move resources from all locations
+        for current_location in LOCATIONS:
+            resources_to_move = []
+            remaining_resources = []
 
-        # Update state
-        state.unused_resources = remaining_unused
-        state.used_resources.extend(resources_to_move)
+            for resource in state.resources[current_location]:
+                if resource.resource_id in resource_ids:
+                    resource.location = target_location
+                    resources_to_move.append(resource)
+                else:
+                    remaining_resources.append(resource)
+
+            # Update current location
+            state.resources[current_location] = remaining_resources
+
+            # Add to target location
+            if resources_to_move:
+                state.resources[target_location].extend(resources_to_move)
 
     def search_resources(self, query: str, resources: List[ResourceItem]) -> List[ResourceItem]:
         """Full-text search across all columns.
@@ -211,3 +257,27 @@ class DataManager:
             return resources
 
         return [r for r in resources if r.tag == tag]
+
+    @staticmethod
+    def get_total_count(state: ApplicationState) -> int:
+        """Get total count of all resources across all locations.
+
+        Args:
+            state: Application state
+
+        Returns:
+            Total count of resources
+        """
+        return sum(len(resources) for resources in state.resources.values())
+
+    @staticmethod
+    def get_location_counts(state: ApplicationState) -> Dict[str, int]:
+        """Get count of resources for each location.
+
+        Args:
+            state: Application state
+
+        Returns:
+            Dictionary mapping location to count
+        """
+        return {loc: len(resources) for loc, resources in state.resources.items()}

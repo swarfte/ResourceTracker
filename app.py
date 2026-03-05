@@ -2,14 +2,14 @@
 
 import streamlit as st
 from utils.session_manager import SessionManager
-from utils.data_manager import DataManager
+from utils.data_manager import DataManager, LOCATION_DISPLAY_NAMES
 from utils.file_parser import FileParser
 
 
 def main():
     """Main import page functionality."""
     st.title("📥 Resource Import")
-    st.write("Upload CSV or Excel files to import resources as 'unused'.")
+    st.write("Upload CSV or Excel files to import resources into the warehouse.")
 
     # Initialize session state
     SessionManager.initialize()
@@ -56,7 +56,7 @@ def main():
             st.subheader("📊 Data Preview")
             st.dataframe(
                 df.head(10),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
 
@@ -65,17 +65,19 @@ def main():
 
             # Import button
             st.divider()
-            if st.button(f"🚀 Import {len(df)} Resources as Unused", type="primary", use_container_width=True):
+            if st.button(f"🚀 Import {len(df)} Resources to Warehouse", type="primary", use_container_width=True):
                 # Import resources with tag
                 data_manager.import_resources(df, state, tag=import_tag)
                 data_manager.save_state(state)
 
                 tag_source = "filename" if not tag.strip() else "custom tag"
-                st.success(f"✅ Successfully imported **{len(df)}** resources as unused with tag '**{import_tag}**' ({tag_source})!")
+                st.success(f"✅ Successfully imported **{len(df)}** resources to **Warehouse** with tag '**{import_tag}**' ({tag_source})!")
                 st.balloons()
 
                 # Show summary
-                st.info(f"📦 Total unused resources: **{len(state.unused_resources)}**")
+                total_count = data_manager.get_total_count(state)
+                warehouse_count = len(state.resources["warehouse"])
+                st.info(f"📦 Total resources: **{total_count}** | Warehouse: **{warehouse_count}**")
 
         else:
             st.error("❌ Failed to parse file. Please check the file format and try again.")
@@ -89,8 +91,8 @@ def main():
         1. **Set a tag (optional)** - Enter a custom tag or leave empty to use the filename as the tag
         2. **Upload a file** - Click the button above to select a CSV or Excel file
         3. **Preview data** - Review the first 10 rows of your data
-        4. **Import** - Click the import button to add all resources as "unused"
-        5. **Manage** - Navigate to 📦 Unused Resources to categorize them
+        4. **Import** - Click the import button to add all resources to the **Warehouse**
+        5. **Manage** - Navigate to different locations to move resources around
 
         ### 📄 File Requirements:
         - CSV files (UTF-8, GBK, or Latin1 encoding)
@@ -100,19 +102,42 @@ def main():
         ### 🏷️ About Tags:
         - Tags help you organize resources by import batch
         - If you don't provide a tag, the **filename** will be used automatically
-        - You can filter resources by tag on the Unused/Used pages
+        - You can filter resources by tag on any location page
         - Example: File 'test-data.csv' → Tag 'test-data'
+
+        ### 📍 About Locations:
+        - **Warehouse**: Default location for all imported resources
+        - Move resources to other locations as they progress through your workflow
+        - Each location page shows resources currently at that location
         """)
 
         # Show current stats if there's data
-        if state.unused_resources or state.used_resources:
+        total_count = data_manager.get_total_count(state)
+        if total_count > 0:
             st.divider()
             st.subheader("📊 Current Statistics")
-            col1, col2 = st.columns(2)
+
+            # Get location counts
+            location_counts = data_manager.get_location_counts(state)
+
+            # Display metrics for all 6 locations
+            col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric(label="📦 Unused Resources", value=len(state.unused_resources))
+                st.metric(LOCATION_DISPLAY_NAMES["warehouse"], location_counts["warehouse"])
             with col2:
-                st.metric(label="✅ Used Resources", value=len(state.used_resources))
+                st.metric(LOCATION_DISPLAY_NAMES["card_room"], location_counts["card_room"])
+            with col3:
+                st.metric(LOCATION_DISPLAY_NAMES["gaming_pit"], location_counts["gaming_pit"])
+
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                st.metric(LOCATION_DISPLAY_NAMES["gaming_table"], location_counts["gaming_table"])
+            with col5:
+                st.metric(LOCATION_DISPLAY_NAMES["destruction_room"], location_counts["destruction_room"])
+            with col6:
+                st.metric(LOCATION_DISPLAY_NAMES["surveillance"], location_counts["surveillance"])
+
+            st.caption(f"**Total Resources:** {total_count}")
 
 
 if __name__ == "__main__":

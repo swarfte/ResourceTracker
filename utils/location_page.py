@@ -1,32 +1,43 @@
-"""Unused Resources page - Display, search, and move resources."""
+"""Shared location page rendering logic."""
 
 import streamlit as st
 import pandas as pd
 from utils.session_manager import SessionManager
-from utils.data_manager import DataManager
+from utils.data_manager import DataManager, LOCATIONS, LOCATION_DISPLAY_NAMES
 
 
-def main():
-    """Display unused resources with search and selection."""
-    st.title(f"📦 Unused Resources")
+def render_location_page(location_key: str, location_display: str):
+    """Render a location page with the given location.
+
+    Args:
+        location_key: Internal location key (e.g., "warehouse")
+        location_display: Display name with emoji (e.g., "📦 Warehouse")
+    """
+    st.title(location_display)
 
     # Initialize session state
     SessionManager.initialize()
     state = SessionManager.get_state()
     data_manager = SessionManager.get_data_manager()
 
+    # Get resources for this location
+    location_resources = state.resources[location_key]
+    total_in_location = len(location_resources)
+
     # Show total count
-    total_unused = len(state.unused_resources)
-    st.caption(f"Total: **{total_unused}** resources")
+    st.caption(f"Total: **{total_in_location}** resources")
 
     # Check if there are any resources
-    if not state.unused_resources:
-        st.warning("⚠️ No unused resources found. Import files on the 📥 Resource Import page.")
-        st.info("💡 Tip: Navigate to the home page to upload CSV or Excel files.")
+    if not location_resources:
+        st.warning(f"⚠️ No resources in {location_display}.")
+        if location_key == "warehouse":
+            st.info("💡 Tip: Import files on the 📥 Resource Import page to add resources to the warehouse.")
+        else:
+            st.info(f"💡 Tip: Move resources from other locations to {location_display}.")
         return
 
     # Get all unique tags
-    all_tags = data_manager.get_all_tags(state.unused_resources)
+    all_tags = data_manager.get_all_tags(location_resources)
 
     # Filter and search section
     st.divider()
@@ -50,7 +61,7 @@ def main():
         )
 
     # Apply filters
-    filtered = state.unused_resources
+    filtered = location_resources
 
     # Filter by tag first
     if selected_tag != "All":
@@ -62,11 +73,11 @@ def main():
 
     # Show filter results
     if selected_tag != "All" and search_query:
-        st.info(f"📊 Found **{len(filtered)}** of **{total_unused}** resources (tag: '{selected_tag}', search: '{search_query}')")
+        st.info(f"📊 Found **{len(filtered)}** of **{total_in_location}** resources (tag: '{selected_tag}', search: '{search_query}')")
     elif selected_tag != "All":
-        st.info(f"📊 Found **{len(filtered)}** of **{total_unused}** resources with tag '{selected_tag}'")
+        st.info(f"📊 Found **{len(filtered)}** of **{total_in_location}** resources with tag '{selected_tag}'")
     elif search_query:
-        st.info(f"📊 Found **{len(filtered)}** of **{total_unused}** resources matching '{search_query}'")
+        st.info(f"📊 Found **{len(filtered)}** of **{total_in_location}** resources matching '{search_query}'")
 
     # Check if filters returned no results
     if not filtered:
@@ -86,12 +97,12 @@ def main():
     st.subheader("📋 Resource List")
     edited_df = st.data_editor(
         df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         column_config={
             "☐️ Select": st.column_config.CheckboxColumn(
                 "Select",
-                help="Select rows to move to used resources",
+                help="Select rows to move to another location",
                 width="small"
             ),
             "🆔 ID": st.column_config.TextColumn(
@@ -110,28 +121,34 @@ def main():
         height=400
     )
 
-    # Handle move to used
+    # Handle move to another location
     selected_rows = edited_df[edited_df['☐️ Select'] == True]
 
     if len(selected_rows) > 0:
         st.divider()
-        col1, col2 = st.columns([2, 1])
+        col1, col2, col3 = st.columns([2, 2, 1])
 
         with col1:
             st.info(f"📌 **{len(selected_rows)}** row(s) selected")
 
         with col2:
-            if st.button(f"📤 Move to Used", type="primary", use_container_width=True):
+            # Get other locations for the dropdown
+            other_locations = [(k, v) for k, v in LOCATION_DISPLAY_NAMES.items() if k != location_key]
+            target_location = st.selectbox(
+                "Move to:",
+                options=[k for k, v in other_locations],
+                format_func=lambda x: LOCATION_DISPLAY_NAMES[x],
+                help="Select target location"
+            )
+
+        with col3:
+            if st.button("📤 Move", type="primary", use_container_width=True):
                 # Get resource IDs to move
                 selected_ids = selected_rows['🆔 ID'].tolist()
 
                 # Move resources
-                data_manager.move_to_used(selected_ids, state)
+                data_manager.move_resources(selected_ids, state, target_location)
                 data_manager.save_state(state)
 
-                st.success(f"✅ Successfully moved **{len(selected_ids)}** resources to used!")
+                st.success(f"✅ Successfully moved **{len(selected_ids)}** resources to **{LOCATION_DISPLAY_NAMES[target_location]}**!")
                 st.rerun()
-
-
-if __name__ == "__main__":
-    main()
