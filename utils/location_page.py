@@ -42,20 +42,28 @@ def render_location_page(location_key: str, location_display: str):
     # Filter and search section
     st.divider()
 
-    # Tag filter
-    col1, col2 = st.columns([1, 2])
+    # Tag, Status, and Search filters
+    col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
         selected_tag = st.selectbox(
-            "🏷️ Filter by Tag",
+            "🏷️ Tag",
             options=["All"] + all_tags,
             help="Filter resources by import tag",
             index=0
         )
 
-    # Search functionality
     with col2:
+        selected_status = st.selectbox(
+            "✅ Status",
+            options=["All", "Unused", "Used"],
+            help="Filter resources by usage status",
+            index=1
+        )
+
+    # Search functionality
+    with col3:
         search_query = st.text_input(
-            "🔍 Search resources",
+            "🔍 Search",
             placeholder="Search all columns...",
             label_visibility="visible"
         )
@@ -67,17 +75,26 @@ def render_location_page(location_key: str, location_display: str):
     if selected_tag != "All":
         filtered = data_manager.filter_by_tag(selected_tag, filtered)
 
+    # Then filter by status
+    if selected_status != "All":
+        filtered = data_manager.filter_by_status(selected_status, filtered)
+
     # Then filter by search query
     if search_query:
         filtered = data_manager.search_resources(search_query, filtered)
 
     # Show filter results
-    if selected_tag != "All" and search_query:
-        st.info(f"📊 Found **{len(filtered)}** of **{total_in_location}** resources (tag: '{selected_tag}', search: '{search_query}')")
-    elif selected_tag != "All":
-        st.info(f"📊 Found **{len(filtered)}** of **{total_in_location}** resources with tag '{selected_tag}'")
-    elif search_query:
-        st.info(f"📊 Found **{len(filtered)}** of **{total_in_location}** resources matching '{search_query}'")
+    filter_info_parts = []
+    if selected_tag != "All":
+        filter_info_parts.append(f"tag: '{selected_tag}'")
+    if selected_status != "All":
+        filter_info_parts.append(f"status: '{selected_status}'")
+    if search_query:
+        filter_info_parts.append(f"search: '{search_query}'")
+
+    if filter_info_parts:
+        filter_text = ", ".join(filter_info_parts)
+        st.info(f"📊 Found **{len(filtered)}** of **{total_in_location}** resources ({filter_text})")
 
     # Check if filters returned no results
     if not filtered:
@@ -88,9 +105,16 @@ def render_location_page(location_key: str, location_display: str):
     df_data = [r.data for r in filtered]
     df = pd.DataFrame(df_data)
 
-    # Add ID and Tag columns at the beginning
+    # Debug: Check status values
+    with st.expander("🔍 Debug: Status Values", expanded=False):
+        st.write("Sample status values from filtered resources:")
+        for i, r in enumerate(filtered[:3]):  # Show first 3
+            st.write(f"  Resource {i+1}: status='{r.status}' (type: {type(r.status).__name__})")
+
+    # Add ID, Tag, and Status columns at the beginning
     df.insert(0, '🆔 ID', [r.resource_id for r in filtered])
     df.insert(1, '🏷️ Tag', [r.tag for r in filtered])
+    df.insert(2, '✅ Status', [r.status.capitalize() if r.status else "Unused" for r in filtered])
 
     # Initialize session state for select all
     if 'select_all' not in st.session_state:
@@ -148,7 +172,7 @@ def render_location_page(location_key: str, location_display: str):
         column_config={
             "☐️ Select": st.column_config.CheckboxColumn(
                 "Select",
-                help="Select rows to move to another location",
+                help="Select rows to move to another location or change status",
                 width="small"
             ),
             "🆔 ID": st.column_config.TextColumn(
@@ -162,6 +186,12 @@ def render_location_page(location_key: str, location_display: str):
                 help="Import batch tag",
                 width="small",
                 disabled=True
+            ),
+            "✅ Status": st.column_config.TextColumn(
+                "Status",
+                help="Resource usage status",
+                width="small",
+                disabled=True
             )
         },
         height=400
@@ -172,12 +202,19 @@ def render_location_page(location_key: str, location_display: str):
     if not st.session_state.select_all:
         st.session_state.current_selections = edited_df['☐️ Select'].tolist()
 
-    # Handle move to another location
+    # Handle move to another location and status change
     selected_rows = edited_df[edited_df['☐️ Select'] == True]
 
     if len(selected_rows) > 0:
         st.divider()
-        col1, col2, col3 = st.columns([2, 2, 1])
+
+        # Check status of selected rows
+        selected_statuses = selected_rows['✅ Status'].tolist()
+        has_unused = 'Unused' in selected_statuses
+        has_used = 'Used' in selected_statuses
+
+        # Action buttons section
+        col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
 
         with col1:
             st.info(f"📌 **{len(selected_rows)}** row(s) selected")
@@ -194,16 +231,28 @@ def render_location_page(location_key: str, location_display: str):
             )
 
         with col3:
+            # Status change buttons
+            if has_unused and has_used:
+                # Mixed selection - show both options
+                col3a, col3b = st.columns(2)
+                with col3a:
+                    mark_used_btn = st.button("✅ Mark Used", help="Mark selected as used (keeps location)", key=f"mark_used_{location_key}")
+                with col3b:
+                    mark_unused_btn = st.button("⬜ Mark Unused", help="Mark selected as unused (keeps location)", key=f"mark_unused_{location_key}")
+            elif has_unused:
+                # All unused - only show Mark Used
+                mark_used_btn = st.button("✅ Mark Used", help="Mark selected as used (keeps location)", key=f"mark_used_{location_key}")
+                mark_unused_btn = None
+            else:
+                # All used - only show Mark Unused
+                mark_used_btn = None
+                mark_unused_btn = st.button("⬜ Mark Unused", help="Mark selected as unused (keeps location)", key=f"mark_unused_{location_key}")
+
+        with col4:
+            # Move button
             if st.button("📤 Move", type="primary", use_container_width=True, key=f"move_btn_{location_key}"):
                 # Get resource IDs to move
                 selected_ids = selected_rows['🆔 ID'].tolist()
-
-                # Debug output
-                with st.expander("🔍 Debug Info", expanded=False):
-                    st.write(f"Moving {len(selected_ids)} resources")
-                    st.write(f"From: {location_key}")
-                    st.write(f"To: {target_location}")
-                    st.write(f"Resource IDs: {selected_ids[:5]}...")  # Show first 5
 
                 try:
                     # Move resources
@@ -220,6 +269,43 @@ def render_location_page(location_key: str, location_display: str):
                 except Exception as e:
                     st.error(f"❌ Error moving resources: {str(e)}")
                     st.exception(e)
+
+        # Handle Mark as Used button click
+        if mark_used_btn and has_unused:
+            selected_ids = selected_rows['🆔 ID'].tolist()
+            try:
+                data_manager.mark_as_used(selected_ids, state)
+                data_manager.save_state(state)
+
+                # Clear selections after status change
+                st.session_state.select_all = False
+                if 'current_selections' in st.session_state:
+                    del st.session_state.current_selections
+
+                st.success(f"✅ Successfully marked **{len(selected_ids)}** resources as **Used**!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error marking as used: {str(e)}")
+                st.exception(e)
+
+        # Handle Mark as Unused button click
+        if mark_unused_btn and has_used:
+            selected_ids = selected_rows['🆔 ID'].tolist()
+            try:
+                data_manager.mark_as_unused(selected_ids, state)
+                data_manager.save_state(state)
+
+                # Clear selections after status change
+                st.session_state.select_all = False
+                if 'current_selections' in st.session_state:
+                    del st.session_state.current_selections
+
+                st.success(f"✅ Successfully marked **{len(selected_ids)}** resources as **Unused**!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error marking as unused: {str(e)}")
+                st.exception(e)
+
     else:
         # Show hint when no rows selected
-        st.caption("💡 Select resources using the checkboxes or 'Select All' to move them to another location")
+        st.caption("💡 Select resources using the checkboxes or 'Select All' to move them or change their status")

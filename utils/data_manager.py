@@ -34,6 +34,7 @@ class ResourceItem:
     """Represents a single resource row with metadata."""
     data: Dict[str, Any]  # Original row data from CSV/Excel
     location: str = "warehouse"  # Current location of the resource
+    status: str = "unused"  # Status: "unused" or "used"
     import_date: str = field(default_factory=lambda: datetime.now().isoformat())
     resource_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     tag: str = "unknown"  # Tag for categorizing resources by import batch
@@ -130,7 +131,13 @@ class DataManager:
                 # New format
                 for loc, items in data['resources'].items():
                     if loc in LOCATIONS:
-                        state.resources[loc] = [ResourceItem(**item) for item in items]
+                        # Handle missing status field for backward compatibility
+                        resources = []
+                        for item in items:
+                            if 'status' not in item:
+                                item['status'] = 'unused'  # Default status for old data
+                            resources.append(ResourceItem(**item))
+                        state.resources[loc] = resources
             else:
                 # Old format - migrate unused_resources to warehouse, used_resources to surveillance
                 unused = [ResourceItem(**item) for item in data.get('unused_resources', [])]
@@ -139,10 +146,12 @@ class DataManager:
                 # Migrate old data to new locations
                 for resource in unused:
                     resource.location = "warehouse"
+                    resource.status = "unused"  # Set status for migrated resources
                     state.resources["warehouse"].append(resource)
 
                 for resource in used:
                     resource.location = "surveillance"
+                    resource.status = "used"  # Set status for migrated resources
                     state.resources["surveillance"].append(resource)
 
             state.last_updated = data.get('last_updated', datetime.now().isoformat())
@@ -170,6 +179,7 @@ class DataManager:
             resource = ResourceItem(
                 data=sanitized_data,
                 location="warehouse",  # Store in warehouse by default
+                status="unused",  # Default status for new imports
                 tag=tag
             )
             state.resources["warehouse"].append(resource)
@@ -203,6 +213,32 @@ class DataManager:
             # Add to target location
             if resources_to_move:
                 state.resources[target_location].extend(resources_to_move)
+
+    def mark_as_used(self, resource_ids: List[str], state: ApplicationState):
+        """Mark resources as used (keeps them in current location).
+
+        Args:
+            resource_ids: List of resource IDs to mark as used
+            state: Application state to update
+        """
+        # Find and update status in all locations
+        for location in LOCATIONS:
+            for resource in state.resources[location]:
+                if resource.resource_id in resource_ids:
+                    resource.status = "used"
+
+    def mark_as_unused(self, resource_ids: List[str], state: ApplicationState):
+        """Mark resources as unused (keeps them in current location).
+
+        Args:
+            resource_ids: List of resource IDs to mark as unused
+            state: Application state to update
+        """
+        # Find and update status in all locations
+        for location in LOCATIONS:
+            for resource in state.resources[location]:
+                if resource.resource_id in resource_ids:
+                    resource.status = "unused"
 
     def search_resources(self, query: str, resources: List[ResourceItem]) -> List[ResourceItem]:
         """Full-text search across all columns.
@@ -257,6 +293,22 @@ class DataManager:
             return resources
 
         return [r for r in resources if r.tag == tag]
+
+    @staticmethod
+    def filter_by_status(status: str, resources: List[ResourceItem]) -> List[ResourceItem]:
+        """Filter resources by status.
+
+        Args:
+            status: Status to filter by ("unused", "used", or "all" for no filtering)
+            resources: List of resources to filter
+
+        Returns:
+            Filtered list of resources
+        """
+        if not status or status.lower() == "all":
+            return resources
+
+        return [r for r in resources if r.status == status.lower()]
 
     @staticmethod
     def get_total_count(state: ApplicationState) -> int:
