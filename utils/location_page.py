@@ -105,12 +105,6 @@ def render_location_page(location_key: str, location_display: str):
     df_data = [r.data for r in filtered]
     df = pd.DataFrame(df_data)
 
-    # Debug: Check status values
-    with st.expander("🔍 Debug: Status Values", expanded=False):
-        st.write("Sample status values from filtered resources:")
-        for i, r in enumerate(filtered[:3]):  # Show first 3
-            st.write(f"  Resource {i+1}: status='{r.status}' (type: {type(r.status).__name__})")
-
     # Add ID, Tag, and Status columns at the beginning
     df.insert(0, '🆔 ID', [r.resource_id for r in filtered])
     df.insert(1, '🏷️ Tag', [r.tag for r in filtered])
