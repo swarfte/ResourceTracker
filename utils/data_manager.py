@@ -240,12 +240,13 @@ class DataManager:
                 if resource.resource_id in resource_ids:
                     resource.status = "unused"
 
-    def search_resources(self, query: str, resources: List[ResourceItem]) -> List[ResourceItem]:
+    def search_resources(self, query: str, resources: List[ResourceItem], strict: bool = False) -> List[ResourceItem]:
         """Full-text search across all columns.
 
         Args:
             query: Search query string
             resources: List of resources to search
+            strict: If True, exact match; if False, partial match (default: False)
 
         Returns:
             Filtered list of resources matching query
@@ -259,9 +260,17 @@ class DataManager:
         for resource in resources:
             # Search all values in the data dictionary
             for value in resource.data.values():
-                if query_lower in str(value).lower():
-                    results.append(resource)
-                    break  # Don't add same resource twice
+                value_str = str(value).lower()
+                if strict:
+                    # Strict mode: exact match
+                    if query_lower == value_str:
+                        results.append(resource)
+                        break  # Don't add same resource twice
+                else:
+                    # Normal mode: partial match (contains)
+                    if query_lower in value_str:
+                        results.append(resource)
+                        break  # Don't add same resource twice
 
         return results
 

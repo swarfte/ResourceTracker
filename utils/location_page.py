@@ -67,6 +67,12 @@ def render_location_page(location_key: str, location_display: str):
             placeholder="Search all columns...",
             label_visibility="visible"
         )
+        strict_mode = st.checkbox(
+            "🎯 Strict mode",
+            value=True,
+            help="When enabled, only exact matches are returned. When disabled, partial matches are included.",
+            key=f"strict_mode_{location_key}"
+        )
 
     # Apply filters
     filtered = location_resources
@@ -81,7 +87,7 @@ def render_location_page(location_key: str, location_display: str):
 
     # Then filter by search query
     if search_query:
-        filtered = data_manager.search_resources(search_query, filtered)
+        filtered = data_manager.search_resources(search_query, filtered, strict=strict_mode)
 
     # Show filter results
     filter_info_parts = []
@@ -90,7 +96,8 @@ def render_location_page(location_key: str, location_display: str):
     if selected_status != "All":
         filter_info_parts.append(f"status: '{selected_status}'")
     if search_query:
-        filter_info_parts.append(f"search: '{search_query}'")
+        mode_text = " (strict)" if strict_mode else ""
+        filter_info_parts.append(f"search: '{search_query}'{mode_text}")
 
     if filter_info_parts:
         filter_text = ", ".join(filter_info_parts)
