@@ -13,6 +13,18 @@ A personal tool for tracking and managing company resources across multiple loca
 - **Auto-Save**: All changes automatically persist to local JSON file
 - **Simple UI**: Clean interface with good UX for quick resource management
 
+## Screenshots
+
+### Home Page - Import & Statistics
+![Home Page](images/home.png)
+
+The home page provides file upload with tagging options and displays resource statistics across all 6 locations.
+
+### Warehouse Page - Resource Management
+![Warehouse Page](images/warehouse.png)
+
+Each location page (Warehouse shown here as example) provides tag filtering, search, select all/clear, and bulk move functionality to other locations.
+
 ## Locations
 
 Resources can be moved between 6 different locations:
