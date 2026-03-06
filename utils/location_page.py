@@ -116,7 +116,7 @@ def render_location_page(location_key: str, location_display: str):
 
     # Select All checkbox and action buttons
     st.subheader("📋 Resource List")
-    col1, col2, col3 = st.columns([1, 1, 4])
+    col1, col2, col3 = st.columns([2, 1, 4])
 
     with col1:
         # Use session state value for checkbox
