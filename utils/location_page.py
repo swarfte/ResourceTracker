@@ -208,7 +208,7 @@ def render_location_page(location_key: str, location_display: str):
         has_used = 'Used' in selected_statuses
 
         # Action buttons section
-        col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+        col1, col2, col3, col4 = st.columns([2, 2, 1.5, 2])
 
         with col1:
             st.info(f"📌 **{len(selected_rows)}** row(s) selected")
@@ -217,7 +217,7 @@ def render_location_page(location_key: str, location_display: str):
             # Get other locations for the dropdown
             other_locations = [(k, v) for k, v in LOCATION_DISPLAY_NAMES.items() if k != location_key]
             target_location = st.selectbox(
-                "Move to:",
+                label="Move to:",
                 options=[k for k, v in other_locations],
                 format_func=lambda x: LOCATION_DISPLAY_NAMES[x],
                 help="Select target location",
@@ -225,24 +225,6 @@ def render_location_page(location_key: str, location_display: str):
             )
 
         with col3:
-            # Status change buttons
-            if has_unused and has_used:
-                # Mixed selection - show both options
-                col3a, col3b = st.columns(2)
-                with col3a:
-                    mark_used_btn = st.button("✅ Mark Used", help="Mark selected as used (keeps location)", key=f"mark_used_{location_key}")
-                with col3b:
-                    mark_unused_btn = st.button("⬜ Mark Unused", help="Mark selected as unused (keeps location)", key=f"mark_unused_{location_key}")
-            elif has_unused:
-                # All unused - only show Mark Used
-                mark_used_btn = st.button("✅ Mark Used", help="Mark selected as used (keeps location)", key=f"mark_used_{location_key}")
-                mark_unused_btn = None
-            else:
-                # All used - only show Mark Unused
-                mark_used_btn = None
-                mark_unused_btn = st.button("⬜ Mark Unused", help="Mark selected as unused (keeps location)", key=f"mark_unused_{location_key}")
-
-        with col4:
             # Move button
             if st.button("📤 Move", type="primary", use_container_width=True, key=f"move_btn_{location_key}"):
                 # Get resource IDs to move
@@ -263,6 +245,24 @@ def render_location_page(location_key: str, location_display: str):
                 except Exception as e:
                     st.error(f"❌ Error moving resources: {str(e)}")
                     st.exception(e)
+
+        with col4:
+            # Status change buttons
+            if has_unused and has_used:
+                # Mixed selection - show both options
+                col4a, col4b = st.columns(2)
+                with col4a:
+                    mark_used_btn = st.button("✅ Mark Used", help="Mark selected as used (keeps location)", key=f"mark_used_{location_key}")
+                with col4b:
+                    mark_unused_btn = st.button("⬜ Mark Unused", help="Mark selected as unused (keeps location)", key=f"mark_unused_{location_key}")
+            elif has_unused:
+                # All unused - only show Mark Used
+                mark_used_btn = st.button("✅ Mark Used", help="Mark selected as used (keeps location)", key=f"mark_used_{location_key}")
+                mark_unused_btn = None
+            else:
+                # All used - only show Mark Unused
+                mark_used_btn = None
+                mark_unused_btn = st.button("⬜ Mark Unused", help="Mark selected as unused (keeps location)", key=f"mark_unused_{location_key}")
 
         # Handle Mark as Used button click
         if mark_used_btn and has_unused:
