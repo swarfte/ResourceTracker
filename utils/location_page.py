@@ -117,9 +117,16 @@ def render_location_page(location_key: str, location_display: str):
     df.insert(1, '🏷️ Tag', [r.tag for r in filtered])
     df.insert(2, '✅ Status', [r.status.capitalize() if r.status else "Unused" for r in filtered])
 
-    # Initialize session state for select all
-    if 'select_all' not in st.session_state:
-        st.session_state.select_all = False
+    # Add Select column first (at position 0)
+    df.insert(0, '☐️ Select', False)
+
+    # Key for the data_editor widget (used to access its state from session_state)
+    editor_key = f'editor_{location_key}'
+
+    # Initialize session state for this location's select_all functionality
+    select_all_storage_key = f'_select_all_state_{location_key}'
+    if select_all_storage_key not in st.session_state:
+        st.session_state[select_all_storage_key] = False
 
     # Select All checkbox and action buttons
     st.subheader("📋 Resource List")
@@ -129,7 +136,7 @@ def render_location_page(location_key: str, location_display: str):
         # Use session state value for checkbox
         select_all = st.checkbox(
             "☑️ Select All",
-            value=st.session_state.select_all,
+            value=st.session_state[select_all_storage_key],
             help="Select all filtered resources",
             key=f"select_all_{location_key}"  # Unique key for each location page
         )
@@ -137,39 +144,25 @@ def render_location_page(location_key: str, location_display: str):
     with col2:
         # Clear selection button
         if st.button("🗑️ Clear", help="Clear all selections", key=f"clear_{location_key}"):
-            st.session_state.select_all = False
-            if 'current_selections' in st.session_state:
-                del st.session_state.current_selections
+            # Clear the editor's state directly
+            st.session_state[editor_key] = df.copy()
+            st.session_state[select_all_storage_key] = False
             st.rerun()
 
     # Detect if select_all checkbox changed and update session state
-    if select_all != st.session_state.select_all:
-        st.session_state.select_all = select_all
+    if select_all != st.session_state[select_all_storage_key]:
+        st.session_state[select_all_storage_key] = select_all
+        # Update the editor's state if select_all changed and the column exists
+        if editor_key in st.session_state and isinstance(st.session_state[editor_key], pd.DataFrame) and '☐️ Select' in st.session_state[editor_key].columns:
+            st.session_state[editor_key]['☐️ Select'] = select_all
         st.rerun()  # Rerun to apply the change
 
-    # Set selection column based on select_all state
-    # Also handle preserved selections from manual checkbox changes
-    if st.session_state.select_all:
-        # Select all is checked
-        df.insert(0, '☐️ Select', True)
-    elif 'current_selections' in st.session_state:
-        # Use preserved manual selections (if any)
-        current_selections = st.session_state.current_selections
-        # Make sure the list length matches
-        if len(current_selections) == len(df):
-            df.insert(0, '☐️ Select', current_selections)
-        else:
-            # Length mismatch, reset to False
-            df.insert(0, '☐️ Select', False)
-    else:
-        # Default - nothing selected
-        df.insert(0, '☐️ Select', False)
-
-    # Display editable table
+    # Display editable table with key for state persistence
     edited_df = st.data_editor(
         df,
         width='stretch',
         hide_index=True,
+        key=editor_key,
         column_config={
             "☐️ Select": st.column_config.CheckboxColumn(
                 "Select",
@@ -198,13 +191,12 @@ def render_location_page(location_key: str, location_display: str):
         height=400
     )
 
-    # Store current selections in session state for manual changes
-    # Only store if select_all is False (to preserve manual selections)
-    if not st.session_state.select_all:
-        st.session_state.current_selections = edited_df['☐️ Select'].tolist()
-
-    # Handle move to another location and status change
-    selected_rows = edited_df[edited_df['☐️ Select'] == True]
+    # Get the current selections from the widget's session state (most up-to-date)
+    if editor_key in st.session_state and isinstance(st.session_state[editor_key], pd.DataFrame) and '☐️ Select' in st.session_state[editor_key].columns:
+        widget_df = st.session_state[editor_key]
+        selected_rows = widget_df[widget_df['☐️ Select'] == True]
+    else:
+        selected_rows = edited_df[edited_df['☐️ Select'] == True]
 
     if len(selected_rows) > 0:
         st.divider()
@@ -243,9 +235,10 @@ def render_location_page(location_key: str, location_display: str):
                     data_manager.save_state(state)
 
                     # Clear selections after move
-                    st.session_state.select_all = False
-                    if 'current_selections' in st.session_state:
-                        del st.session_state.current_selections
+                    st.session_state[select_all_storage_key] = False
+                    # Clear the editor's checkbox selections
+                    if editor_key in st.session_state and isinstance(st.session_state[editor_key], pd.DataFrame) and '☐️ Select' in st.session_state[editor_key].columns:
+                        st.session_state[editor_key]['☐️ Select'] = False
 
                     st.success(f"✅ Successfully moved **{len(selected_ids)}** resources to **{LOCATION_DISPLAY_NAMES[target_location]}**!")
                     st.rerun()
@@ -279,9 +272,10 @@ def render_location_page(location_key: str, location_display: str):
                 data_manager.save_state(state)
 
                 # Clear selections after status change
-                st.session_state.select_all = False
-                if 'current_selections' in st.session_state:
-                    del st.session_state.current_selections
+                st.session_state[select_all_storage_key] = False
+                # Clear the editor's checkbox selections
+                if editor_key in st.session_state and isinstance(st.session_state[editor_key], pd.DataFrame) and '☐️ Select' in st.session_state[editor_key].columns:
+                    st.session_state[editor_key]['☐️ Select'] = False
 
                 st.success(f"✅ Successfully marked **{len(selected_ids)}** resources as **Used**!")
                 st.rerun()
@@ -297,9 +291,10 @@ def render_location_page(location_key: str, location_display: str):
                 data_manager.save_state(state)
 
                 # Clear selections after status change
-                st.session_state.select_all = False
-                if 'current_selections' in st.session_state:
-                    del st.session_state.current_selections
+                st.session_state[select_all_storage_key] = False
+                # Clear the editor's checkbox selections
+                if editor_key in st.session_state and isinstance(st.session_state[editor_key], pd.DataFrame) and '☐️ Select' in st.session_state[editor_key].columns:
+                    st.session_state[editor_key]['☐️ Select'] = False
 
                 st.success(f"✅ Successfully marked **{len(selected_ids)}** resources as **Unused**!")
                 st.rerun()
