@@ -18,6 +18,8 @@ The application opens at `http://localhost:8501`
 
 ResourceTracker is a personal tool for tracking company resources across 6 physical locations. Users import CSV/Excel files, tag resources by import batch, and move resources through locations as they progress through a workflow.
 
+Additionally, it provides a **Processed Resources** page for viewing and tracking processed PDF files with used/unused status management.
+
 ## Architecture
 
 ### 6-Location System
@@ -56,8 +58,9 @@ class ApplicationState:
 
 ### Data Persistence
 
-- **Storage**: `data/resources.json` (auto-created)
-- **Auto-save**: After every import or move operation
+- **Resource Storage**: `data/resources.json` (auto-created)
+- **Processed Status**: `data/processed_status.json` - Tracks used/unused status for PDF files
+- **Auto-save**: After every import, move, or status change operation
 - **Backward compatible**: Old "unused/used" format auto-migrates (unused→warehouse, used→surveillance)
 - **Type sanitization**: Pandas/NumPy types converted to JSON-compatible types (NaN→None, timestamps→ISO strings)
 
@@ -72,6 +75,16 @@ class ApplicationState:
 - Each location page uses `render_location_page()` from `utils/location_page.py`
 - All location pages are ~14 lines of code (just call the template)
 - Template provides: tag filter, search, select all/clear, resource table, move functionality
+
+**Processed Resources Page** (`pages/8_📄_Processed_Resource.py`):
+- Displays PDF files from `processed/` folder
+- Search/filter by file name (case-insensitive)
+- Used/Unused status tracking with persistent storage
+- View filter: Unused Only (default), Used Only, or All Resources
+- Click to view PDF in embedded viewer
+- Mark as Used/Unused button to toggle status
+- Download button for each PDF
+- Status persisted in `data/processed_status.json`
 
 **Template Pattern** (`utils/location_page.py`):
 The `render_location_page(location_key, location_display)` function:
@@ -108,6 +121,13 @@ key=f"move_to_{location_key}"
 - Filter by tag on any location page
 - Tags are preserved when resources move between locations
 
+**Processed Resources Status Tracking**:
+- Uses `data/processed_status.json` to persist used/unused status
+- `st.session_state.processed_selected_pdf` tracks currently selected PDF
+- Status toggled via "Mark as Used/Unused" button
+- JSON format: `{"filename.pdf": true/false}`
+- Auto-creates `data/` directory if it doesn't exist
+
 ### Important Files
 
 **Core Business Logic**:
@@ -137,3 +157,33 @@ Old data format (`unused_resources`/`used_resources`) automatically migrates on 
 - Old `unused_resources` → `warehouse` location
 - Old `used_resources` → `surveillance` location
 - Migration happens once, then saves in new format
+
+### Directory Structure
+
+```
+ResourceTracker/
+├── app.py                          # Main entry point (Import page)
+├── requirements.txt                  # Python dependencies
+├── CLAUDE.md                       # Project documentation for Claude Code
+├── README.md                        # User documentation
+├── .streamlit/
+│   └── config.toml                 # Streamlit configuration
+├── pages/
+│   ├── 2_📦_Warehouse.py          # Warehouse location page
+│   ├── 3_🃏_Card_Room.py          # Card room location page
+│   ├── 4_🎰_Gaming_Pit.py         # Gaming pit location page
+│   ├── 5_🎲_Gaming_Table.py       # Gaming table location page
+│   ├── 6_🔥_Destruction_Room.py   # Destruction room location page
+│   ├── 7_📹_Surveillance.py       # Surveillance location page
+│   └── 8_📄_Processed_Resource.py # Processed resources page
+├── utils/
+│   ├── __init__.py
+│   ├── data_manager.py              # Data operations and persistence
+│   ├── file_parser.py               # CSV/Excel parsing
+│   └── session_manager.py           # Session state management
+├── data/
+│   ├── resources.json               # Auto-saved resource persistence
+│   └── processed_status.json        # Processed PDF used/unused status
+└── processed/                     # Folder for processed PDF files
+    └── *.pdf                      # PDF files to view and track
+```

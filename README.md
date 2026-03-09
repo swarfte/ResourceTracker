@@ -10,6 +10,9 @@ A personal tool for tracking and managing company resources across multiple loca
 - **Tag-Based Organization**: Auto-tag imports by filename or custom tags
 - **Full-Text Search**: Search across all columns in your data
 - **Tag Filtering**: Filter resources by import tag
+- **Processed Resources**: View and track processed PDF files with used/unused status
+- **PDF Status Tracking**: Mark processed resources as used or unused with persistent storage
+- **PDF Preview**: Embedded viewer for processed PDF files with download option
 - **Auto-Save**: All changes automatically persist to local JSON file
 - **Simple UI**: Clean interface with good UX for quick resource management
 
@@ -24,6 +27,16 @@ The home page provides file upload with tagging options and displays resource st
 ![Warehouse Page](images/warehouse.png)
 
 Each location page (Warehouse shown here as example) provides tag filtering, search, select all/clear, and bulk move functionality to other locations.
+
+### Processed Resources Page - PDF Tracking
+![Processed Resources Page](images/processed_resources.png)
+
+The Processed Resources page displays PDF files from the `processed/` folder with the following features:
+- **View Filter**: Unused Only (default), Used Only, or All Resources
+- **Search**: Filter PDFs by file name (case-insensitive)
+- **Status Indicators**: 🆕 Unused, ✅ Used, 👁️ Currently Viewing
+- **PDF Viewer**: Embedded preview with download option
+- **Status Toggle**: Mark PDFs as Used/Unused with persistent tracking
 
 ## Locations
 
@@ -49,6 +62,11 @@ Resources can be moved between 6 different locations:
    ```
 
 3. **Run the application**:
+
+   **Option A - Quick Start (Windows)**:
+   Simply double-click `run_app.bat` to launch the application.
+
+   **Option B - Command Line**:
    ```bash
    streamlit run app.py
    ```
@@ -81,6 +99,16 @@ Resources can be moved between 6 different locations:
 - Each location page shows resources currently at that location
 - View statistics on the home page to see resource distribution
 
+### 4. Manage Processed Resources (📄 Processed Resources)
+
+1. Place processed PDF files in the `processed/` folder
+2. Navigate to the Processed Resources page using the sidebar
+3. Choose view type: Unused Only (default), Used Only, or All Resources
+4. Search for specific PDFs by file name
+5. Click on any PDF to view it in the embedded viewer
+6. Mark PDFs as Used or Unused to track their status
+7. Download PDFs if needed for offline viewing
+
 ## File Requirements
 
 - **CSV Files**: Supports UTF-8, GBK, and Latin1 encodings
@@ -88,6 +116,7 @@ Resources can be moved between 6 different locations:
 - **No Column Requirements**: All columns are imported as-is
 - **Automatic Encoding Detection**: Tries multiple encodings for CSV files
 - **Auto-Tagging**: Uses filename as tag if no custom tag provided
+- **Processed PDFs**: Place PDF files in the `processed/` folder for tracking and viewing
 
 ## Tagging System
 
@@ -101,8 +130,10 @@ Resources can be moved between 6 different locations:
 
 ## Data Persistence
 
-All data is automatically saved to `data/resources.json`:
-- Changes are saved immediately after import or move operations
+All data is automatically saved to the `data/` directory:
+- **Resource Data**: `data/resources.json` - Stores all imported resources and their locations
+- **Processed Status**: `data/processed_status.json` - Tracks used/unused status for PDF files
+- Changes are saved immediately after import, move, or status change operations
 - Data persists across application restarts
 - JSON format for easy inspection and backup
 - Auto-creates the `data/` directory if it doesn't exist
@@ -115,6 +146,7 @@ ResourceTracker/
 ├── app.py                          # Main entry point (Import page)
 ├── requirements.txt                # Python dependencies
 ├── README.md                       # This file
+├── run_app.bat                     # Quick launcher for Windows
 ├── .streamlit/
 │   └── config.toml                 # Streamlit configuration
 ├── pages/
@@ -123,14 +155,18 @@ ResourceTracker/
 │   ├── 4_🎰_Gaming_Pit.py         # Gaming pit location page
 │   ├── 5_🎲_Gaming_Table.py       # Gaming table location page
 │   ├── 6_🔥_Destruction_Room.py   # Destruction room location page
-│   └── 7_📹_Surveillance.py       # Surveillance location page
+│   ├── 7_📹_Surveillance.py       # Surveillance location page
+│   └── 8_📄_Processed_Resource.py # Processed resources page
 ├── utils/
 │   ├── __init__.py
 │   ├── data_manager.py            # Data operations and persistence
 │   ├── file_parser.py             # CSV/Excel parsing
 │   └── session_manager.py         # Session state management
-└── data/
-    └── resources.json             # Auto-saved persistence file
+├── data/
+│   ├── resources.json             # Auto-saved resource persistence
+│   └── processed_status.json      # Processed PDF used/unused status
+└── processed/                     # Folder for processed PDF files
+    └── *.pdf                      # PDF files to view and track
 ```
 
 ## Technology Stack
@@ -150,6 +186,9 @@ ResourceTracker/
 - Check the home page for overall statistics across all locations
 - Your data is automatically saved - no manual save needed
 - The application works offline once dependencies are installed
+- Place processed PDF files in the `processed/` folder to track and view them
+- Mark processed resources as Used/Unused to track their status
+- Use the "Unused Only" view to quickly find unprocessed resources
 
 ## Troubleshooting
 
@@ -170,6 +209,18 @@ ResourceTracker/
 - Resources are imported to Warehouse by default
 - Check the home page statistics to see where resources are located
 - Use the search and filter features on location pages
+
+**Processed PDFs not showing**:
+- Ensure PDF files are placed in the `processed/` folder
+- Check that the file extension is `.pdf` (case-insensitive)
+- Verify the view type is set to "Unused Only" (default) or "All Resources"
+- Use the search box to filter by file name
+- Check that the `data/processed_status.json` file is writable
+
+**PDF preview not working**:
+- Try downloading the PDF and opening it in your browser
+- Check that your browser supports embedded PDF viewing
+- Some PDF files may have compatibility issues with embedded viewers
 
 ## License
 
