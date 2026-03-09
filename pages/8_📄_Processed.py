@@ -64,6 +64,10 @@ def main():
         layout="wide"
     )
 
+    # Initialize session state for selected PDF
+    if "processed_selected_pdf" not in st.session_state:
+        st.session_state.processed_selected_pdf = None
+
     st.title("📄 Processed Resources")
 
     # Get the processed directory path
@@ -81,52 +85,56 @@ def main():
         )
         return
 
-    # Add search/filter bar
-    st.markdown("### 🔍 Search & Filter")
-    col_search, col_count = st.columns([4, 1])
+    # Create two columns: left for controls, right for PDF viewer
+    col_controls, col_viewer = st.columns([1, 3])
 
-    with col_search:
+    with col_controls:
+        # Search section
+        st.markdown("### 🔍 Search")
         search_term = st.text_input(
-            "Search by file name:",
-            placeholder="Type to filter PDF files...",
-            key="pdf_search"
+            "Filter by name:",
+            placeholder="Type to filter...",
+            key="pdf_search",
+            label_visibility="collapsed"
         )
 
-    with col_count:
-        # Show file count
+        # Filter files
         filtered_files = filter_pdf_files(all_pdf_files, search_term)
+
+        # Show file count
         st.metric(
             "Results",
             f"{len(filtered_files)}/{len(all_pdf_files)}"
         )
 
-    if not filtered_files:
-        st.warning("No PDF files match your search criteria.")
-        return
+        if not filtered_files:
+            st.warning("No PDF files match your search criteria.")
+            return
 
-    # Create two columns: sidebar for list, main area for PDF viewer
-    col_list, col_viewer = st.columns([1, 3])
+        st.markdown("---")
 
-    with col_list:
-        st.subheader("PDF Files")
+        # PDF list section
+        st.markdown("### 📄 PDF Files")
 
-        # Add a selectbox for choosing PDF
-        selected_pdf = st.selectbox(
-            "Select a PDF file to view:",
-            options=filtered_files,
-            key="pdf_selector"
-        )
-
-        # List all PDFs
-        st.markdown("### All PDFs")
+        # List all filtered PDFs as buttons
         for pdf in filtered_files:
-            if st.button(f"📄 {pdf}", key=f"btn_{pdf}", use_container_width=True):
-                st.session_state.selected_pdf = pdf
+            # Highlight the selected PDF
+            if st.session_state.processed_selected_pdf == pdf:
+                st.button(
+                    f"✅ {pdf}",
+                    key=f"btn_{pdf}",
+                    use_container_width=True,
+                    type="primary"
+                )
+            else:
+                if st.button(f"📄 {pdf}", key=f"btn_{pdf}", use_container_width=True):
+                    st.session_state.processed_selected_pdf = pdf
+                    st.rerun()
 
     with col_viewer:
-        if selected_pdf:
-            st.subheader(f"Viewing: {selected_pdf}")
-
+        # PDF Viewer section (always at top)
+        if st.session_state.processed_selected_pdf:
+            selected_pdf = st.session_state.processed_selected_pdf
             pdf_path = processed_dir / selected_pdf
 
             if pdf_path.exists():
@@ -136,8 +144,10 @@ def main():
                     with open(pdf_path, 'rb') as f:
                         pdf_bytes = f.read()
 
+                    st.subheader(f"Viewing: {selected_pdf}")
+
                     st.download_button(
-                        label=f"⬇️ Download {selected_pdf}",
+                        label="⬇️ Download PDF",
                         data=pdf_bytes,
                         file_name=selected_pdf,
                         mime="application/pdf",
@@ -151,7 +161,7 @@ def main():
                         <embed
                             src="data:application/pdf;base64,{pdf_base64}"
                             width="100%"
-                            height="700"
+                            height="750"
                             type="application/pdf"
                             style="border: 1px solid #ddd; border-radius: 8px;"
                         />
@@ -167,6 +177,18 @@ def main():
                     )
             else:
                 st.error(f"File not found: {selected_pdf}")
+        else:
+            st.info(
+                "👈 Select a PDF file from the list on the left to view it here."
+            )
+            # Show some helpful instructions
+            st.markdown("""
+            ### Instructions:
+            1. Use the search box to filter PDFs by name
+            2. Click on any PDF file to view it
+            3. The PDF will be displayed here
+            4. Download the PDF if needed
+            """)
 
 
 if __name__ == "__main__":
