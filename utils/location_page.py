@@ -167,10 +167,6 @@ def render_location_page(location_key: str, location_display: str):
     # Update df based on select_all state (for display purposes)
     df.loc[:, '☐️ Select'] = st.session_state[select_all_storage_key]
 
-    # DEBUG to diagnose
-    st.write(f"DEBUG: select_all={st.session_state[select_all_storage_key]}, editor_key={editor_key}")
-    st.write(f"DEBUG: df['☐️ Select'].head():\n{df['☐️ Select'].head()}")
-
     # Display editable table with key for state persistence
     edited_df = st.data_editor(
         df,
