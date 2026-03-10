@@ -120,13 +120,15 @@ def render_location_page(location_key: str, location_display: str):
     # Add Select column first (at position 0)
     df.insert(0, '☐️ Select', False)
 
-    # Key for the data_editor widget (used to access its state from session_state)
-    editor_key = f'editor_{location_key}'
-
     # Initialize session state for this location's select_all functionality
     select_all_storage_key = f'_select_all_state_{location_key}'
     if select_all_storage_key not in st.session_state:
         st.session_state[select_all_storage_key] = False
+
+    # Counter for editor versions - increments when select_all is clicked
+    editor_version_key = f'_editor_version_{location_key}'
+    if editor_version_key not in st.session_state:
+        st.session_state[editor_version_key] = 0
 
     # Select All checkbox and action buttons
     st.subheader("📋 Resource List")
@@ -144,18 +146,30 @@ def render_location_page(location_key: str, location_display: str):
     with col2:
         # Clear selection button
         if st.button("🗑️ Clear", help="Clear all selections", key=f"clear_{location_key}"):
-            # Clear the editor's state directly
-            st.session_state[editor_key] = df.copy()
             st.session_state[select_all_storage_key] = False
+            st.session_state[editor_version_key] = 0  # Reset to base version
             st.rerun()
+            return  # Stop execution - don't render old state
 
-    # Detect if select_all checkbox changed and update session state
+    # Detect if select_all checkbox changed
     if select_all != st.session_state[select_all_storage_key]:
         st.session_state[select_all_storage_key] = select_all
-        # Update the editor's state if select_all changed and the column exists
-        if editor_key in st.session_state and isinstance(st.session_state[editor_key], pd.DataFrame) and '☐️ Select' in st.session_state[editor_key].columns:
-            st.session_state[editor_key]['☐️ Select'] = select_all
+        # Clear all versioned editor states to force fresh render
+        for key in list(st.session_state.keys()):
+            if key.startswith(f'editor_{location_key}'):
+                del st.session_state[key]
         st.rerun()  # Rerun to apply the change
+        return  # Stop execution - don't render old state
+
+    # Use static editor key - version tracking removed for simplicity
+    editor_key = f'editor_{location_key}'
+
+    # Update df based on select_all state (for display purposes)
+    df.loc[:, '☐️ Select'] = st.session_state[select_all_storage_key]
+
+    # DEBUG to diagnose
+    st.write(f"DEBUG: select_all={st.session_state[select_all_storage_key]}, editor_key={editor_key}")
+    st.write(f"DEBUG: df['☐️ Select'].head():\n{df['☐️ Select'].head()}")
 
     # Display editable table with key for state persistence
     edited_df = st.data_editor(
