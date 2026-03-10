@@ -69,7 +69,7 @@ def render_location_page(location_key: str, location_display: str):
         )
         strict_mode = st.checkbox(
             "🎯 Strict mode",
-            value=True,
+            value=False,
             help="When enabled, only exact matches are returned. When disabled, partial matches are included.",
             key=f"strict_mode_{location_key}"
         )
